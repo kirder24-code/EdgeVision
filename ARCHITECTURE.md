@@ -81,3 +81,12 @@ The queue has a fixed positive capacity and `drop-oldest` overflow policy: on fu
 Buffered telemetry: `capture_frames_read`, `frames_processed`, `frames_dropped_overflow`, `queue_wait_ms` p50/p95/max, `queue_max_depth`, and `capture_mode=buffered`. `capture_frames_read = frames_processed + frames_dropped_overflow + frames_unprocessed` when capture thread has ended; `frames_unprocessed` includes remaining queued frames upon early termination. The main pipeline may read a changing number of frames from a finite file under overload; tests must not demand deterministic throughput/scheduling.
 
 The queue unit tests and fake-capture worker tests are deterministic. Buffered end-to-end video tests only verify valid output and metric invariants; performance is assessed separately on actual camera hardware.
+
+## v0.4 evaluation boundary (specified before code)
+
+The evaluator is a pure Python offline module, independent of the detector and C++ tracker.
+It accepts **external ground truth** and predictions as XYWH boxes, matches each
+prediction to at most one ground-truth box at a stated IoU threshold and reports
+micro-aggregated TP/FP/FN and precision/recall/F1. A deterministic crossing fixture
+specifies required C++ track identity behavior; no claimed real-scene score follows
+from this synthetic contract. The native ABI remains unchanged.

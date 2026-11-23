@@ -39,3 +39,13 @@ A moving white rectangle tests a decode→detector→native tracker→encode pat
 | T-20 | FR-15 | synthetic encoded AVI in buffered mode | positive processed frames; output opens; counters reconcile; sync existing tests remain green |
 
 Execution evidence: retain RED pytest output before `capture.py` exists and GREEN output after implementation; never claim camera/sensor timestamp verification.
+
+## v0.4 test-first contracts
+
+- T-21: IoU identical/disjoint/partial with hand-computed results.
+- T-22: One-to-one TP matching prevents duplicate detection credit.
+- T-23: FP/FN accounting and safe empty-frame denominators.
+- T-24: Three-frame handcrafted ground truth yields TP=1, FP=1, FN=2, precision=0.5, recall=1/3, F1=0.4.
+- T-25: Invalid boxes and thresholds explicitly rejected.
+- T-26: C++ tracking preserves two physically labelled identities across a five-frame crossing.
+- T-27 (pending external dataset): record immutable frame annotations; measure detection metrics without using predictions to create labels.

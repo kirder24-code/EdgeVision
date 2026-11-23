@@ -42,3 +42,15 @@ Spec and acceptance test committed before behavior change; demonstrate red test 
 | NFR-08 | SHOULD | Real camera capture-to-consumer age benchmark with configured queue capacity and CPU load | Hardware pending |
 
 Time stamps are host post-decode times, not exposure times. Queue overflow is a **software** drop counter and cannot detect frames lost inside camera drivers or codecs.
+
+## v0.4 independently specified evaluation, tracker robustness (before implementation)
+
+| ID | Priority | Contract | Verification |
+|---|---|---|---|
+| FR-16 | MUST | IoU from valid XYWH boxes; reject invalid boxes | identical=1, disjoint=0, half-width overlap=1/3 |
+| FR-17 | MUST | One-to-one per-frame matching of GT and predictions at a declared IoU threshold | duplicate prediction cannot count twice |
+| FR-18 | MUST | Dataset-level micro precision, recall and F1 from TP, FP, FN; zero denominators yield 0 | manually computed 3-frame fixture |
+| FR-19 | MUST | Stable IDs for two labelled, constant-velocity objects crossing with modest vertical offset | five-frame C++ test, independent of foreground detector |
+| FR-20 | SHOULD | Evaluate detection on independently annotated real camera footage | pending acquisition of recorded consent-safe footage; synthetic fixture is **not** a real-world accuracy estimate |
+
+Target for crossing fixture: 0 ID switches. No general claim about occlusion, severe perspective shift or crowded scenes.

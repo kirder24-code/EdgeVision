@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstddef>
 #include <limits>
+#include <utility>
 #include <vector>
 
 extern "C" {
@@ -80,7 +81,14 @@ void ev_tracker_destroy(void* tracker) { delete static_cast<Tracker*>(tracker); 
 int ev_tracker_update(void* tracker, const EVDetection* detections, int count,
                       EVTrack* output, int capacity) {
     if (!tracker) return -1;
-    try { return static_cast<Tracker*>(tracker)->update(detections, count, output, capacity); }
-    catch (...) { return -4; }
+    try {
+        // Transactional update: the candidate owns tentative changes. A failed
+        // capacity check or validation never modifies the live tracker state.
+        auto* live = static_cast<Tracker*>(tracker);
+        Tracker candidate = *live;
+        const int result = candidate.update(detections, count, output, capacity);
+        if (result >= 0) *live = std::move(candidate);
+        return result;
+    } catch (...) { return -4; }
 }
 }

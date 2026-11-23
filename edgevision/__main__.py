@@ -1,5 +1,6 @@
 import argparse
 import json
+import hashlib
 import os
 from pathlib import Path
 import statistics
@@ -8,13 +9,14 @@ import time
 import cv2
 import psutil
 
-from .pipeline import MotionPipeline
+from .pipeline import MotionPipeline, SemanticPipeline
 from .capture import CaptureWorker
 from .recorder import percentile_nearest_rank, validate_output_paths
 
 
 def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_area=350,
-        capture_mode="sync", queue_capacity=3, tracks_jsonl=None):
+        capture_mode="sync", queue_capacity=3, tracks_jsonl=None,
+        detector="motion", model=None, semantic_detector=None, confidence=0.25, nms_iou=0.45):
     if not isinstance(max_frames, int) or isinstance(max_frames, bool) or max_frames < 0:
         raise ValueError("max_frames must be a nonnegative integer")
     validate_output_paths(output, metrics)
@@ -32,6 +34,25 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
         raise ValueError("capture_mode must be sync or buffered")
     if capture_mode == "buffered" and (not isinstance(queue_capacity, int) or queue_capacity <= 0):
         raise ValueError("queue_capacity must be positive")
+    if detector not in ('motion', 'onnx'):
+        raise ValueError('detector must be motion or onnx')
+    if detector == 'onnx':
+        from .onnx_detector import YoloRawDetector
+        if semantic_detector is None and not model:
+            raise ValueError('ONNX detector requires --model path.onnx')
+        # Validate before creating an inference session or touching a video output.
+        # The ONNX weights may represent the user's only local model copy.
+        if model is not None:
+            model_file = Path(model).resolve()
+            reserved = {Path(output).resolve(), Path(metrics).resolve()}
+            if tracks_jsonl is not None:
+                reserved.add(Path(tracks_jsonl).resolve())
+            if model_file in reserved:
+                raise ValueError('Output paths must not overwrite the ONNX model')
+            if not model_file.is_file():
+                raise FileNotFoundError(f'ONNX model not found: {model_file}')
+        if semantic_detector is None:
+            semantic_detector = YoloRawDetector(model_path=model, confidence=confidence, iou=nms_iou)
     source_arg = int(source) if str(source).isdigit() else str(source)
     cap = cv2.VideoCapture(source_arg)
     if not cap.isOpened():
@@ -46,11 +67,12 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
     metrics_path.parent.mkdir(parents=True, exist_ok=True)
     writer = None
     samples = []
+    onnx_stages = {'preprocess': [], 'inference': [], 'postprocess': []}
     frame_count = 0
     detections = 0
     peak_rss = psutil.Process(os.getpid()).memory_info().rss
     started = time.perf_counter()
-    pipe = MotionPipeline(min_area=min_area)
+    pipe = MotionPipeline(min_area=min_area) if detector == 'motion' else SemanticPipeline(semantic_detector)
     worker = None
     queue_wait_samples = []
     trace_file = None
@@ -89,6 +111,9 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
             rendered, tracks, n = pipe.process(frame)
             elapsed_ms = (time.perf_counter_ns() - t0) / 1e6
             samples.append(elapsed_ms)
+            if detector == 'onnx' and hasattr(semantic_detector, 'last_timing_ms'):
+                for stage in onnx_stages:
+                    onnx_stages[stage].append(semantic_detector.last_timing_ms[stage])
             detections += n
             if trace_file is not None:
                 trace_file.write(json.dumps({
@@ -118,6 +143,9 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
     pct = lambda p: percentile_nearest_rank(s, p)
     report = {
         'source': str(source), 'output': str(output), 'frames_processed': frame_count,
+        'detector': detector,
+        'inference': ('none_motion_only' if detector == 'motion' else
+                      ('onnxruntime_cpu' if getattr(semantic_detector, 'loaded_from_file', False) else 'mock_session_not_real_model')),
         'detections_total': detections, 'source_fps': fps_source,
         'processing_fps_excluding_io': round(1000 * frame_count / sum(samples), 2),
         'end_to_end_fps_including_io': round(frame_count / wall, 2),
@@ -126,8 +154,18 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
         'peak_process_rss_mb': round(peak_rss / 2**20, 2),
         'duration_seconds': round(wall, 3),
         'latency_percentile_definition': 'nearest rank (ceil(p * n))',
-        'limitations': 'CPU/file benchmark; no camera latency or dropped-frame accounting; MOG2 motion, not semantic object recognition'
+        'limitations': 'No camera latency or glass-to-glass measurement; host processing timing only; offline CPU benchmark' 
     }
+    if detector == 'onnx' and all(onnx_stages.values()):
+        report['onnx_stage_latency_ms'] = {
+            stage: {'p50': round(statistics.median(values), 3),
+                    'p95': round(percentile_nearest_rank(sorted(values), .95), 3),
+                    'max': round(max(values), 3)}
+            for stage, values in onnx_stages.items()
+        }
+    if detector == 'onnx' and model is not None:
+        report['model_path'] = str(Path(model).resolve())
+        report['model_sha256'] = hashlib.sha256(Path(model).read_bytes()).hexdigest()
     if tracks_jsonl is not None:
         report['track_trace'] = str(tracks_jsonl)
     if worker is not None:
@@ -147,7 +185,7 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
             'timestamp_scope': 'monotonic clock after VideoCapture.read, NOT sensor exposure time',
         })
         report['limitations'] = ('CPU capture-to-consumer queue age, not glass-to-glass latency; '
-                                 'software queue drops only; hardware/driver drops unknown; MOG2 motion, not semantic object recognition')
+                                 'software queue drops only; hardware/driver drops unknown; detector=' + detector)
     metrics_path.write_text(json.dumps(report, indent=2) + '\n')
     return report
 
@@ -155,6 +193,10 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
 def main():
     parser = argparse.ArgumentParser(description='EdgeVision CPU motion detection + native C++ tracking')
     parser.add_argument('--source', required=True, help='File path or camera index (e.g. 0)')
+    parser.add_argument('--detector', choices=['motion','onnx'], default='motion')
+    parser.add_argument('--model', help='Local raw YOLOv8/YOLO11 detection ONNX file (required for --detector onnx)')
+    parser.add_argument('--confidence', type=float, default=0.25)
+    parser.add_argument('--nms-iou', type=float, default=0.45)
     parser.add_argument('--output', default='artifacts/annotated.avi')
     parser.add_argument('--metrics', default='artifacts/metrics.json')
     parser.add_argument('--tracks-jsonl', default=None, help='Optional per-frame JSONL audit trail')
@@ -165,7 +207,8 @@ def main():
     args = parser.parse_args()
     print(json.dumps(run(args.source, args.output, args.metrics, max_frames=args.max_frames,
                          min_area=args.min_area, capture_mode=args.capture_mode,
-                         queue_capacity=args.queue_capacity, tracks_jsonl=args.tracks_jsonl), indent=2))
+                         queue_capacity=args.queue_capacity, tracks_jsonl=args.tracks_jsonl,
+                         detector=args.detector, model=args.model, confidence=args.confidence, nms_iou=args.nms_iou), indent=2))
 
 
 if __name__ == '__main__':

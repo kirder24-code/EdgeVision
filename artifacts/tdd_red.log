@@ -1,0 +1,40 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+__________ test_rejected_small_buffer_does_not_consume_first_track_id __________
+
+native_tracker = (<CDLL '/mnt/data/EdgeVision/build/libedgevision_tracker.so', handle e6b2570 at 0x7f7c615363c0>, 241523440)
+
+    def test_rejected_small_buffer_does_not_consume_first_track_id(native_tracker):
+        """T-05: failed update acts like no update happened at all."""
+        lib, handle = native_tracker
+        rc, _ = call(lib, handle, [(10, 10, 20, 20)], capacity=0)
+        assert rc == -3
+        rc, tracks = call(lib, handle, [], capacity=1)
+>       assert rc == 0, "Rejected update must not create a track"
+E       AssertionError: Rejected update must not create a track
+E       assert 1 == 0
+
+tests/test_tracker_abi_contract.py:47: AssertionError
+____________ test_failed_update_preserves_existing_tracks_and_boxes ____________
+
+native_tracker = (<CDLL '/mnt/data/EdgeVision/build/libedgevision_tracker.so', handle e6b2570 at 0x7f7c615407d0>, 241523440)
+
+    def test_failed_update_preserves_existing_tracks_and_boxes(native_tracker):
+        """T-06: no partial state change on rejected update."""
+        lib, handle = native_tracker
+        rc, tracks = call(lib, handle, [(10, 10, 20, 20)], capacity=1)
+        assert rc == 1 and tracks[0].id == 1
+        rc, _ = call(lib, handle, [(20, 10, 20, 20), (200, 10, 20, 20)], capacity=1)
+        assert rc == -3
+        rc, tracks = call(lib, handle, [], capacity=1)
+>       assert rc == 1, "Rejected call must not have created a second track"
+E       AssertionError: Rejected call must not have created a second track
+E       assert -3 == 1
+
+tests/test_tracker_abi_contract.py:62: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_tracker_abi_contract.py::test_rejected_small_buffer_does_not_consume_first_track_id - AssertionError: Rejected update must not create a track
+assert 1 == 0
+FAILED tests/test_tracker_abi_contract.py::test_failed_update_preserves_existing_tracks_and_boxes - AssertionError: Rejected call must not have created a second track
+assert -3 == 1
+2 failed in 0.06s

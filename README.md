@@ -8,6 +8,10 @@ A reproducible **engineering prototype**, not a production robotics perception s
 
 Detection **does not** perform semantic classification. Tracking is deterministic global-greedy assignment, not Hungarian/Kalman/DeepSORT; crossing trajectories may swap IDs. No GPU required.
 
+## Engineering specification and TDD evidence
+
+Start with [`ARCHITECTURE.md`](ARCHITECTURE.md), [`REQUIREMENTS.md`](REQUIREMENTS.md), [`TEST_PLAN.md`](TEST_PLAN.md) and [`ACCEPTANCE.md`](ACCEPTANCE.md). The first post-baseline change is a red/green regression test for atomic C ABI updates when an output buffer is too small. See `tests/test_tracker_abi_contract.py` and `artifacts/tdd_red.log`, `artifacts/tdd_green.log`.
+
 ## Quick start (Linux)
 
 Requires Python 3.11+, g++, and venv. From repository root:
@@ -67,3 +71,7 @@ This prototype demonstrates C++/Python interoperability, basic motion detection,
 ## Local verification record (2026-11-23)
 
 A single run in the available Linux container completed **7/7 pytest tests**, compiled the C++17 library with `-Wall -Wextra -Werror`, decoded and encoded **180/180** synthetic video frames, and produced `artifacts/metrics.json` and `artifacts/edgevision_demo.mp4`. Measured processing p50 **2.416 ms**, p95 **3.401 ms** and total file-processing throughput **200.51 FPS** (includes decode+encode, not live camera I/O). Peak sampled RSS **141.74 MiB**. Full conditions in `artifacts/benchmark_environment.json`. This is one local measurement, not a promise about other machines. **Docker image has not been built or executed in this environment** (Docker executable unavailable).
+
+## v0.2 TDD verification
+
+Requirements and tests were written before the C++ update. The legacy library failed both new ABI atomicity tests. The native library was rebuilt after implementing a transactional update, and the expanded local suite passed **12/12**. The C++ tracker currently copies its state for each update; this is a correctness-first approach, with overhead to benchmark separately. No camera, Docker or cloud CI verification is implied.

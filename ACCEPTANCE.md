@@ -29,3 +29,17 @@ A milestone cannot be marked complete until independent tests, edge cases, and t
 - After C++ rebuild: `bash scripts/build.sh && python -m pytest -q` => **12 passed**.
 - Red/green command output is captured in `artifacts/tdd_red.log` and `artifacts/tdd_green.log`.
 - Native C++ and pytest run on this Linux host; Docker, camera, GitHub remote, and target-hardware benchmarking remain unverified.
+
+## v0.3 bounded capture TDD milestone (2026-11-23)
+
+| Gate | Status / evidence |
+|---|---|
+| A11: architecture/requirements/test cases before change | DOCUMENTED, commit `e15c206` |
+| A12: RED evidence | PASS (missing `edgevision.capture` raises ModuleNotFoundError at test collection; no behavior tested yet), `artifacts/tdd_v03_red.log` |
+| A13: bounded FIFO / drop-oldest / wake / worker tests | PASS locally, 7 new queue+worker tests |
+| A14: buffered end-to-end video / metric reconciliation | PASS locally, 1 new integration test |
+| A15: full regression after C++ rebuild | PASS locally, 20 tests |
+| A16: actual USB camera / driver drops / exposure timing | NOT VERIFIED |
+| A17: guaranteed interruptible device capture on shutdown | NOT IMPLEMENTED (blocking native read may delay stop) |
+
+Sample **single local** buffered-file run (synthetic 640×480, 180 frames read, queue capacity=3, max 100 processed): `capture_frames_read=180`, `frames_processed=20`, `frames_dropped_overflow=160`, `queue_max_depth=3`, processing latency p95=8.444 ms, queue wait p95=10.542 ms. See `artifacts/v03_metrics.json`; machine load and thread scheduling vary between runs. This is NOT a camera benchmark, nor 180 frames processed, nor a guarantee of throughput.

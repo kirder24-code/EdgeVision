@@ -9,9 +9,15 @@ import cv2
 import psutil
 
 from .pipeline import MotionPipeline
+from .capture import CaptureWorker
 
 
-def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_area=350):
+def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_area=350,
+        capture_mode="sync", queue_capacity=3):
+    if capture_mode not in ("sync", "buffered"):
+        raise ValueError("capture_mode must be sync or buffered")
+    if capture_mode == "buffered" and (not isinstance(queue_capacity, int) or queue_capacity <= 0):
+        raise ValueError("queue_capacity must be positive")
     source_arg = int(source) if str(source).isdigit() else str(source)
     cap = cv2.VideoCapture(source_arg)
     if not cap.isOpened():
@@ -31,11 +37,30 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
     peak_rss = psutil.Process(os.getpid()).memory_info().rss
     started = time.perf_counter()
     pipe = MotionPipeline(min_area=min_area)
+    worker = None
+    queue_wait_samples = []
+    if capture_mode == "buffered":
+        worker = CaptureWorker(cap, capacity=queue_capacity).start()
+
+    def next_frames():
+        if worker is not None:
+            yield from worker.frames()
+        else:
+            while True:
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                yield frame
+
     try:
-        while not max_frames or frame_count < max_frames:
-            ok, frame = cap.read()
-            if not ok:
+        for item in next_frames():
+            if max_frames and frame_count >= max_frames:
                 break
+            if worker is not None:
+                frame = item.frame
+                queue_wait_samples.append(item.queue_wait_ms())
+            else:
+                frame = item
             if writer is None:
                 h, w = frame.shape[:2]
                 writer = cv2.VideoWriter(str(out_path), cv2.VideoWriter_fourcc(*'MJPG'), fps_source, (w, h))
@@ -50,10 +75,15 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
             frame_count += 1
             peak_rss = max(peak_rss, psutil.Process(os.getpid()).memory_info().rss)
     finally:
-        cap.release()
-        pipe.close()
-        if writer:
-            writer.release()
+        try:
+            if worker is not None:
+                worker.stop()
+            else:
+                cap.release()
+        finally:
+            pipe.close()
+            if writer:
+                writer.release()
     wall = time.perf_counter() - started
     if not samples:
         raise RuntimeError('No frames decoded')
@@ -70,6 +100,24 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
         'duration_seconds': round(wall, 3),
         'limitations': 'CPU/file benchmark; no camera latency or dropped-frame accounting; MOG2 motion, not semantic object recognition'
     }
+    if worker is not None:
+        wait_sorted = sorted(queue_wait_samples)
+        report.update({
+            'capture_mode': 'buffered',
+            'capture_frames_read': worker.frames_read,
+            'frames_dropped_overflow': worker.dropped_overflow,
+            'frames_unprocessed': worker.frames_read - frame_count - worker.dropped_overflow,
+            'queue_max_depth': worker.queue.max_depth,
+            'queue_capacity': queue_capacity,
+            'queue_wait_ms': {
+                'p50': round(statistics.median(wait_sorted), 3),
+                'p95': round(wait_sorted[min(len(wait_sorted) - 1, int((len(wait_sorted) - 1) * .95))], 3),
+                'max': round(max(wait_sorted), 3),
+            },
+            'timestamp_scope': 'monotonic clock after VideoCapture.read, NOT sensor exposure time',
+        })
+        report['limitations'] = ('CPU capture-to-consumer queue age, not glass-to-glass latency; '
+                                 'software queue drops only; hardware/driver drops unknown; MOG2 motion, not semantic object recognition')
     metrics_path.write_text(json.dumps(report, indent=2) + '\n')
     return report
 
@@ -81,9 +129,12 @@ def main():
     parser.add_argument('--metrics', default='artifacts/metrics.json')
     parser.add_argument('--max-frames', type=int, default=0)
     parser.add_argument('--min-area', type=int, default=350)
+    parser.add_argument('--capture-mode', choices=['sync', 'buffered'], default='sync')
+    parser.add_argument('--queue-capacity', type=int, default=3)
     args = parser.parse_args()
     print(json.dumps(run(args.source, args.output, args.metrics, max_frames=args.max_frames,
-                         min_area=args.min_area), indent=2))
+                         min_area=args.min_area, capture_mode=args.capture_mode,
+                         queue_capacity=args.queue_capacity), indent=2))
 
 
 if __name__ == '__main__':

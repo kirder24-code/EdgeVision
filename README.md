@@ -75,3 +75,21 @@ A single run in the available Linux container completed **7/7 pytest tests**, co
 ## v0.2 TDD verification
 
 Requirements and tests were written before the C++ update. The legacy library failed both new ABI atomicity tests. The native library was rebuilt after implementing a transactional update, and the expanded local suite passed **12/12**. The C++ tracker currently copies its state for each update; this is a correctness-first approach, with overhead to benchmark separately. No camera, Docker or cloud CI verification is implied.
+
+## v0.3 — bounded timestamped capture (TDD)
+
+The default `--capture-mode sync` is unchanged and processes each decoded file frame in sequence. For latency-oriented acquisition, choose an explicit **drop-oldest** fixed-capacity queue and a dedicated capture thread:
+
+```bash
+python scripts/generate_video.py --output artifacts/input.avi
+python -m edgevision --source artifacts/input.avi --capture-mode buffered \
+  --queue-capacity 3 --output artifacts/buffered.avi --metrics artifacts/buffered.json
+# Camera input where supported (not yet verified on hardware):
+python -m edgevision --source 0 --capture-mode buffered --queue-capacity 3
+```
+
+The `FramePacket` timestamp is taken on the host **after** `VideoCapture.read()` succeeds. `queue_wait_ms` is residence time from that timestamp to consumption, *not* glass-to-glass latency or hardware sensor timing. The reported `frames_dropped_overflow` only accounts for overflows inside our Python queue; driver/internal codec drops remain unknown. When the decoder is faster than the CPU processing path, many file frames can deliberately be discarded. **Use sync mode for exhaustive offline processing and buffered mode for freshness under load.**
+
+Spec and tests committed first (`e15c206`), producing a recorded RED import error because no `edgevision.capture` module existed; after implementation all **20 tests passed**. This RED checkpoint establishes module absence, not a behavioral test failure; the contract behavior is established by the subsequent GREEN run. Evidence logs `artifacts/tdd_v03_red.log`, `artifacts/tdd_v03_green.log`, and a sample buffered benchmark `artifacts/v03_metrics.json`. Tests cover FIFO, 100-frame overload, monotonic timestamps, close/drain semantics, worker EOF/exception/early stop, and end-to-end encoded output. OS thread scheduling affects dropped counts; do not assert fixed drops in integration runs.
+
+**Known limitations:** Capture worker shutdown depends on `VideoCapture.read()` returning. A blocked native camera read may prevent timely shutdown; `stop()` then raises after the join timeout. No hardware-camera validation, ROS integration, hard real-time deadline guarantee, true sensor timestamps or image-quality metrics have been performed.

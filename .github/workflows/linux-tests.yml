@@ -1,0 +1,21 @@
+name: Linux build and tests
+on:
+  push:
+  pull_request:
+jobs:
+  cpu-tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ libglib2.0-0 libgl1
+          python -m pip install -r requirements.txt
+      - name: Compile C++ tracker and run pytest
+        run: |
+          bash scripts/build.sh
+          python -m pytest -q

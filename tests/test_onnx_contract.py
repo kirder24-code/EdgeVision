@@ -154,3 +154,19 @@ def test_real_model_provenance_is_saved_in_metrics_with_mock_session(tmp_path):
     assert result['model_sha256'] == hashlib.sha256(model.read_bytes()).hexdigest()
     assert result['model_path'] == str(model.resolve())
     assert result['inference'] == 'mock_session_not_real_model'
+
+
+def test_onnx_report_separates_model_inference_from_total_processing(tmp_path):
+    from edgevision.__main__ import run
+    source = tmp_path/'one.avi'
+    video = cv2.VideoWriter(str(source), cv2.VideoWriter_fourcc(*'MJPG'), 10, (200,200))
+    assert video.isOpened()
+    video.write(_frame(200,200)); video.release()
+    detector = YoloRawDetector(session=FakeSession(_output((50,100,40,40,.95,.1))), input_size=200)
+    report = run(str(source), str(tmp_path/'out.avi'), str(tmp_path/'metrics.json'),
+                 detector='onnx', semantic_detector=detector)
+    assert report['onnx_stage_latency_ms']['inference']['p95'] >= 0
+    assert report['onnx_stage_latency_ms']['preprocess']['p50'] >= 0
+    assert report['onnx_stage_latency_ms']['postprocess']['p50'] >= 0
+    assert 'onnx_stage_latency_ms' not in run(str(source), str(tmp_path/'motion.avi'),
+                 str(tmp_path/'motion.json'), detector='motion')

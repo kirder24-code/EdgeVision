@@ -8,9 +8,9 @@ from pathlib import Path
 
 import pytest
 
-from edgevision.tracking import Detection, Track
+from edgevision.tracking import Detection, Track, native_library_filename
 
-LIBRARY = Path(__file__).resolve().parents[1] / "build" / "libedgevision_tracker.so"
+LIBRARY = Path(__file__).resolve().parents[1] / "build" / native_library_filename()
 
 
 @pytest.fixture

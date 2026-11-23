@@ -14,7 +14,7 @@ from .recorder import percentile_nearest_rank, validate_output_paths
 
 
 def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_area=350,
-        capture_mode="sync", queue_capacity=3):
+        capture_mode="sync", queue_capacity=3, tracks_jsonl=None):
     if not isinstance(max_frames, int) or isinstance(max_frames, bool) or max_frames < 0:
         raise ValueError("max_frames must be a nonnegative integer")
     validate_output_paths(output, metrics)
@@ -22,6 +22,12 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
         source_path = Path(source).resolve()
         if source_path == Path(output).resolve() or source_path == Path(metrics).resolve():
             raise ValueError("output and metrics paths must be different from input")
+    if tracks_jsonl is not None:
+        trace_path = Path(tracks_jsonl).resolve()
+        if trace_path in (Path(output).resolve(), Path(metrics).resolve()):
+            raise ValueError("track trace path must differ from video and metrics outputs")
+        if not str(source).isdigit() and trace_path == Path(source).resolve():
+            raise ValueError("track trace path must differ from input")
     if capture_mode not in ("sync", "buffered"):
         raise ValueError("capture_mode must be sync or buffered")
     if capture_mode == "buffered" and (not isinstance(queue_capacity, int) or queue_capacity <= 0):
@@ -47,6 +53,10 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
     pipe = MotionPipeline(min_area=min_area)
     worker = None
     queue_wait_samples = []
+    trace_file = None
+    if tracks_jsonl is not None:
+        Path(tracks_jsonl).parent.mkdir(parents=True, exist_ok=True)
+        trace_file = open(tracks_jsonl, 'w', encoding='utf-8')
     if capture_mode == "buffered":
         worker = CaptureWorker(cap, capacity=queue_capacity).start()
 
@@ -64,6 +74,7 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
         for item in next_frames():
             if max_frames and frame_count >= max_frames:
                 break
+            source_sequence = item.sequence if worker is not None else frame_count
             if worker is not None:
                 frame = item.frame
                 queue_wait_samples.append(item.queue_wait_ms())
@@ -79,6 +90,12 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
             elapsed_ms = (time.perf_counter_ns() - t0) / 1e6
             samples.append(elapsed_ms)
             detections += n
+            if trace_file is not None:
+                trace_file.write(json.dumps({
+                    'source_sequence': source_sequence,
+                    'processing_latency_ms': round(elapsed_ms, 4),
+                    'tracks': tracks,
+                }) + '\n')
             writer.write(rendered)
             frame_count += 1
             peak_rss = max(peak_rss, psutil.Process(os.getpid()).memory_info().rss)
@@ -90,6 +107,8 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
                 cap.release()
         finally:
             pipe.close()
+            if trace_file is not None:
+                trace_file.close()
             if writer:
                 writer.release()
     wall = time.perf_counter() - started
@@ -109,6 +128,8 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
         'latency_percentile_definition': 'nearest rank (ceil(p * n))',
         'limitations': 'CPU/file benchmark; no camera latency or dropped-frame accounting; MOG2 motion, not semantic object recognition'
     }
+    if tracks_jsonl is not None:
+        report['track_trace'] = str(tracks_jsonl)
     if worker is not None:
         wait_sorted = sorted(queue_wait_samples)
         report.update({
@@ -136,6 +157,7 @@ def main():
     parser.add_argument('--source', required=True, help='File path or camera index (e.g. 0)')
     parser.add_argument('--output', default='artifacts/annotated.avi')
     parser.add_argument('--metrics', default='artifacts/metrics.json')
+    parser.add_argument('--tracks-jsonl', default=None, help='Optional per-frame JSONL audit trail')
     parser.add_argument('--max-frames', type=int, default=0)
     parser.add_argument('--min-area', type=int, default=350)
     parser.add_argument('--capture-mode', choices=['sync', 'buffered'], default='sync')
@@ -143,7 +165,7 @@ def main():
     args = parser.parse_args()
     print(json.dumps(run(args.source, args.output, args.metrics, max_frames=args.max_frames,
                          min_area=args.min_area, capture_mode=args.capture_mode,
-                         queue_capacity=args.queue_capacity), indent=2))
+                         queue_capacity=args.queue_capacity, tracks_jsonl=args.tracks_jsonl), indent=2))
 
 
 if __name__ == '__main__':

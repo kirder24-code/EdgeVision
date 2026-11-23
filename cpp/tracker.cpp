@@ -11,7 +11,7 @@ struct EVTrack { int id; double x, y, w, h; int missed; };
 }
 
 namespace {
-struct Track { int id; EVDetection box; int missed; };
+struct Track { int id; EVDetection box; int missed; double vx = 0.0; double vy = 0.0; };
 class Tracker {
 public:
     explicit Tracker(double max_distance, int max_missed)
@@ -29,8 +29,9 @@ public:
         for (size_t t = 0; t < tracks_.size(); ++t) {
             for (int d = 0; d < count; ++d) {
                 auto a = tracks_[t].box, b = detections[d];
-                double dist = std::hypot((a.x + a.w / 2) - (b.x + b.w / 2),
-                                         (a.y + a.h / 2) - (b.y + b.h / 2));
+                const double steps = static_cast<double>(tracks_[t].missed + 1);
+                double dist = std::hypot((a.x + a.w / 2 + tracks_[t].vx * steps) - (b.x + b.w / 2),
+                                         (a.y + a.h / 2 + tracks_[t].vy * steps) - (b.y + b.h / 2));
                 if (dist <= max_distance_) candidates.push_back({dist, t, d});
             }
         }
@@ -44,7 +45,15 @@ public:
             if (matched_t[c.t] || matched_d[c.d]) continue;
             matched_t[c.t] = true;
             matched_d[c.d] = true;
+            const auto& prior = tracks_[c.t];
+            const double steps = static_cast<double>(prior.missed + 1);
+            const double vx = (detections[c.d].x + detections[c.d].w / 2 -
+                               prior.box.x - prior.box.w / 2) / steps;
+            const double vy = (detections[c.d].y + detections[c.d].h / 2 -
+                               prior.box.y - prior.box.h / 2) / steps;
             tracks_[c.t].box = detections[c.d];
+            tracks_[c.t].vx = vx;
+            tracks_[c.t].vy = vy;
             tracks_[c.t].missed = 0;
         }
         for (size_t i = 0; i < matched_t.size(); ++i) {

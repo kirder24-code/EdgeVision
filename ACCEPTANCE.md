@@ -43,3 +43,12 @@ A milestone cannot be marked complete until independent tests, edge cases, and t
 | A17: guaranteed interruptible device capture on shutdown | NOT IMPLEMENTED (blocking native read may delay stop) |
 
 Sample **single local** buffered-file run (synthetic 640×480, 180 frames read, queue capacity=3, max 100 processed): `capture_frames_read=180`, `frames_processed=20`, `frames_dropped_overflow=160`, `queue_max_depth=3`, processing latency p95=8.444 ms, queue wait p95=10.542 ms. See `artifacts/v03_metrics.json`; machine load and thread scheduling vary between runs. This is NOT a camera benchmark, nor 180 frames processed, nor a guarantee of throughput.
+
+## v0.4 evaluation / crossing (2026-11-23)
+
+- FR-16/17/18: PASS. Hand-computed IoU and precision/recall/F1 fixtures, one-to-one matching.
+- FR-19: PASS for **one deterministic five-frame two-object crossing** only. Legacy greedy matcher switched IDs; velocity-based C++ association passed after rebuild.
+- FR-20: NOT VERIFIED. No independent real-world camera footage was supplied; synthetic video cannot substitute for it.
+- Synthetic detector fixture: 80 scored frames, IoU threshold 0.5; TP=64, FP=16, FN=16, precision=0.800, recall=0.800, F1=0.800 (single local run). Score is fixture-dependent; not an accuracy estimate on robotics scenes.
+- Native C++ compiled with strict warnings; full pytest suite to be rerun before release.
+- Docker, actual camera, real-scene MOT benchmark and external GitHub CI still unverified.

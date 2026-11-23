@@ -93,3 +93,27 @@ The `FramePacket` timestamp is taken on the host **after** `VideoCapture.read()`
 Spec and tests committed first (`e15c206`), producing a recorded RED import error because no `edgevision.capture` module existed; after implementation all **20 tests passed**. This RED checkpoint establishes module absence, not a behavioral test failure; the contract behavior is established by the subsequent GREEN run. Evidence logs `artifacts/tdd_v03_red.log`, `artifacts/tdd_v03_green.log`, and a sample buffered benchmark `artifacts/v03_metrics.json`. Tests cover FIFO, 100-frame overload, monotonic timestamps, close/drain semantics, worker EOF/exception/early stop, and end-to-end encoded output. OS thread scheduling affects dropped counts; do not assert fixed drops in integration runs.
 
 **Known limitations:** Capture worker shutdown depends on `VideoCapture.read()` returning. A blocked native camera read may prevent timely shutdown; `stop()` then raises after the join timeout. No hardware-camera validation, ROS integration, hard real-time deadline guarantee, true sensor timestamps or image-quality metrics have been performed.
+
+## v0.4 — independent offline box evaluation + crossing identity
+
+The evaluator `edgevision/evaluation.py` computes one-to-one IoU association,
+TP/FP/FN, micro precision/recall/F1. Its unit tests use hand-calculated expected
+answers; the synthetic scoring script generates scene boxes from **known geometry**,
+not from the detector's predicted output.
+
+```bash
+bash scripts/build.sh
+python -m pytest -q
+python scripts/evaluate_synthetic.py artifacts/v04_synthetic_evaluation.json
+```
+
+The C++ tracker now uses last-observed centroid velocity to predict association
+locations and passes the two-object, five-frame crossing fixture. This is a
+constant-velocity heuristic, **not** a Kalman filter, identity guarantee or
+crowded-scene benchmark. Crossing can still fail with abrupt motion or long gaps.
+The artificial single-rectangle detection score is **not representative of real camera
+accuracy**. Real footage with independently labelled ground truth remains pending.
+
+TDD history: tests and spec committed before implementation; missing evaluation
+module failed collection; after adding evaluator the crossing identity test failed;
+then C++ was changed and the complete suite passed. Logs: `artifacts/tdd_v04_*`.

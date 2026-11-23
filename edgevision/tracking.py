@@ -1,6 +1,7 @@
 """ctypes wrapper for C++17 tracker; no Python tracking fallback."""
 import ctypes as C
 from pathlib import Path
+import platform
 
 
 class Detection(C.Structure):
@@ -11,9 +12,17 @@ class Track(C.Structure):
     _fields_ = [('id', C.c_int)] + [(k, C.c_double) for k in ('x', 'y', 'w', 'h')] + [('missed', C.c_int)]
 
 
+def native_library_filename(system=None):
+    system = platform.system() if system is None else system
+    names = {'Linux': 'libedgevision_tracker.so', 'Darwin': 'libedgevision_tracker.dylib'}
+    if system not in names:
+        raise RuntimeError(f'Unsupported native tracking platform: {system}')
+    return names[system]
+
+
 class CppTracker:
     def __init__(self, max_distance=65.0, max_missed=8, library=None):
-        path = Path(library) if library else Path(__file__).resolve().parents[1] / 'build' / 'libedgevision_tracker.so'
+        path = Path(library) if library else Path(__file__).resolve().parents[1] / 'build' / native_library_filename()
         if not path.is_file():
             raise FileNotFoundError(f'C++ tracking library missing: {path}. Run bash scripts/build.sh')
         self.lib = C.CDLL(str(path))

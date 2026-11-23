@@ -23,3 +23,17 @@ jobs:
         run: |
           bash scripts/verify_release.sh
           python -m scripts.benchmark_release --source artifacts/release_input.avi --repetitions 3
+  macos-native-tests:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install and compile
+        run: |
+          python -m pip install -r requirements.txt
+          bash scripts/build.sh
+          python -m pytest -q
+      - name: Verify offline video pipeline (camera not available in CI)
+        run: bash scripts/verify_release.sh

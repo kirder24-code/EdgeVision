@@ -63,3 +63,13 @@ Sample **single local** buffered-file run (synthetic 640×480, 180 frames read, 
 - Repeated **three sync runs**, 180 frames each, from the same synthetic file. See `artifacts/benchmark_v1/summary.json` for exact per-run results and environment.
 - Full release smoke validates actual decoded output frames, not just metadata. The executable `scripts/verify_release.sh` is the reproducibility entry point.
 - **PENDING**: real annotated videos, USB camera, target edge hardware, Docker image runtime, public GitHub remote and hosted CI. These are environment/external evidence gates, not automatically satisfied by a passing local test suite.
+
+## macOS preflight acceptance (pending execution on an actual Mac)
+
+- [x] Platform-specific `.so` / `.dylib` selection under unit tests (Linux host).
+- [x] Camera probe validates open/read and releases device under mocked unit tests.
+- [x] macOS setup script and macOS GitHub Actions job authored.
+- [ ] macOS compiler executes and produces a loadable `.dylib` on real macOS hardware.
+- [ ] macOS pytest and offline video end-to-end test pass in macOS CI.
+- [ ] macOS camera permission grant, 30-frame acquisition and readable output video verified on user hardware.
+- [ ] macOS camera metrics and real-world tracking evaluated and recorded.

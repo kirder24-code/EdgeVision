@@ -87,3 +87,9 @@ Local Linux compilation, automated tests, native sanitizer smoke, sync and buffe
 ## TDD history
 
 Git commits preserve test-first specification and failed tests before implementation for native ABI atomicity, buffered capture, crossing-identity stability, independent identity metrics, I/O safety and per-frame track trace. A collection error due to a missing module proves non-existence, **not** a functional behavioral failure; the I/O regression tests explicitly failed against real legacy behavior.
+
+## macOS native build and camera test
+
+The native C++ tracker now builds as `libedgevision_tracker.dylib` using Apple Clang on Darwin, while preserving `libedgevision_tracker.so` on Linux. macOS compatibility is covered by platform contract tests and a GitHub Actions macOS job, but **physical Mac camera testing is still required**.
+
+Start with `MACOS_SETUP.md`. In short, extract the project, enter the `EdgeVision` folder and run `bash scripts/macos/setup.sh`, followed by `python -m edgevision.camera_probe --index 0 --frames 30`. Then run the bounded camera pipeline in the guide. The camera-only test requires permission in macOS Privacy & Security settings.

@@ -107,3 +107,31 @@ def test_fake_onnx_session_integrates_with_cpp_tracking():
         assert fake.calls[0][1]['images'].shape == (1,3,200,200)
     finally:
         pipeline.close()
+
+
+def test_onnx_full_video_integration_is_explicit_and_auditable(tmp_path):
+    """Uses fake inference (integration only); checks native tracker, recorder and report."""
+    from edgevision.__main__ import run
+    source = tmp_path / 'input.avi'
+    writer = cv2.VideoWriter(str(source), cv2.VideoWriter_fourcc(*'MJPG'), 10, (200,200))
+    assert writer.isOpened()
+    for _ in range(4):
+        writer.write(_frame(200,200))
+    writer.release()
+    session = FakeSession(_output((50,100,40,40,.95,.1)))
+    detector = YoloRawDetector(session=session, input_size=200, confidence=.5)
+    result = run(str(source), str(tmp_path/'output.avi'), str(tmp_path/'metrics.json'),
+                 detector='onnx', semantic_detector=detector, tracks_jsonl=str(tmp_path/'tracks.jsonl'))
+    assert result['detector'] == 'onnx'
+    assert result['inference'] == 'mock_session_not_real_model'
+    assert result['frames_processed'] == 4
+    assert len(session.calls) == 4
+    tracks = [__import__('json').loads(line) for line in (tmp_path/'tracks.jsonl').read_text().splitlines()]
+    assert all(row['tracks'][0]['id'] == 1 for row in tracks)
+    assert all(row['tracks'][0]['class_id'] == 0 for row in tracks)
+
+
+def test_real_onnx_mode_requires_model_before_video_is_opened(tmp_path):
+    from edgevision.__main__ import run
+    with pytest.raises(ValueError, match='--model'):
+        run('0', str(tmp_path/'out.avi'), str(tmp_path/'metrics.json'), detector='onnx')

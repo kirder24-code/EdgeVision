@@ -19,3 +19,7 @@ jobs:
         run: |
           bash scripts/build.sh
           python -m pytest -q
+      - name: End-to-end release smoke and trace validation
+        run: |
+          bash scripts/verify_release.sh
+          python -m scripts.benchmark_release --source artifacts/release_input.avi --repetitions 3

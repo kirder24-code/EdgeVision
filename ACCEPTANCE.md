@@ -52,3 +52,14 @@ Sample **single local** buffered-file run (synthetic 640×480, 180 frames read, 
 - Synthetic detector fixture: 80 scored frames, IoU threshold 0.5; TP=64, FP=16, FN=16, precision=0.800, recall=0.800, F1=0.800 (single local run). Score is fixture-dependent; not an accuracy estimate on robotics scenes.
 - Native C++ compiled with strict warnings; full pytest suite to be rerun before release.
 - Docker, actual camera, real-scene MOT benchmark and external GitHub CI still unverified.
+
+## v0.5-v0.7 consolidated local verification (2026-11-23)
+
+- Native C++ compiled with g++ -Wall -Wextra -Werror; Python **44 tests passed** after last track audit change.
+- Separately compiled C++ native ABI smoke with Clang/ASan/UBSan; **passed**, no sanitizer errors in that run.
+- Confirmed a concrete I/O safety defect before fixing: 4 legacy tests failed when source/output/metrics path collisions or invalid max-frame values were supplied. Protected inputs are now validated before opening VideoCapture.
+- Tests-first JSONL audit records original source sequence, compute time and native C++ track records (3 new contracts). The trace can identify sequence gaps from buffered capture.
+- New trajectory evaluator counts descriptive IoU-matched ID switches, unmatched GT and unmatched predictions; tests use hand-labelled sequences, not derived labels.
+- Repeated **three sync runs**, 180 frames each, from the same synthetic file. See `artifacts/benchmark_v1/summary.json` for exact per-run results and environment.
+- Full release smoke validates actual decoded output frames, not just metadata. The executable `scripts/verify_release.sh` is the reproducibility entry point.
+- **PENDING**: real annotated videos, USB camera, target edge hardware, Docker image runtime, public GitHub remote and hosted CI. These are environment/external evidence gates, not automatically satisfied by a passing local test suite.

@@ -1,7 +1,6 @@
 # EdgeVision — macOS installation and camera validation
 
-Status: **instructions and cross-platform code prepared; not tested on physical macOS hardware yet**.
-No Python source changes should be necessary for Darwin, but real confirmation requires a Mac.
+Status: **the project owner has verified the earlier motion-only release on a physical Apple Silicon Mac** (48/48 tests, 30 camera frames, live annotated video). See `MACOS_TEST_EVIDENCE.md`. The optional ONNX v0.9 mode has **not** been run on that Mac.
 
 ## Prerequisites
 
@@ -69,7 +68,7 @@ python -m pytest -q
 cat artifacts/mac_camera_metrics.json
 ```
 
-Never claim the camera trial succeeded until these commands are executed on the user's Mac and the output is reviewed. For privacy, the `.avi` file may contain images of the user or their home: review it before sharing. If any command fails, send the error message and the OS/architecture information; avoid uploading private videos unless necessary.
+The earlier motion-camera trial succeeded on the user's Mac; see `MACOS_TEST_EVIDENCE.md`. New ONNX trials still require separate evidence. For privacy, the `.avi` file may contain images of the user or their home: review it before sharing. If any command fails, send the error message and the OS/architecture information; avoid uploading private videos unless necessary.
 
 ## Known limitations
 
@@ -99,3 +98,7 @@ On Macs affected by the Homebrew `pyexpat` / `libexpat` symbol issue,
 run these commands in the same Terminal session in which the working
 `DYLD_LIBRARY_PATH` and `.venv` have been configured. macOS test results
 and actual camera availability must be verified on the target Mac.
+
+## Optional neural detector after baseline validation
+
+Keep the existing working `.venv`. Refer to `ONNX_MACOS.md` for the separate optional `onnxruntime` installation, the explicitly supported raw YOLO model format, model license checks and paired offline benchmark. Do **not** repeat the base installer on this Mac: an earlier Homebrew Python / `pyexpat` linkage problem required a shell-local Expat workaround.

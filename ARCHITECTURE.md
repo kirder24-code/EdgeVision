@@ -71,3 +71,13 @@ Linux, g++ C++17 (`-Wall -Wextra -Werror`), Python 3.11+, OpenCV, numpy, psutil,
 5. Improved tracking for crossings, ID-switch tests, then hardware/ROS integration if available.
 
 Changes to interfaces or success criteria require an updated specification and a new failing test before implementation.
+
+## v0.3 proposed buffered acquisition (contract before implementation)
+
+Optional **buffered** mode uses a dedicated capture thread: `VideoCapture.read()` -> timestamp immediately after successful decode -> bounded FIFO (`FramePacket(sequence, captured_ns, frame)`) -> main processing thread -> native tracking/writer. The default `sync` file mode remains unchanged, preserving exact-frame tests. `captured_ns` is a host monotonic timestamp **after decoding**, not a sensor exposure time; `queue_wait_ms` is dequeue time minus that timestamp, **not glass-to-glass latency**.
+
+The queue has a fixed positive capacity and `drop-oldest` overflow policy: on full enqueue, remove precisely one oldest unconsumed packet and append the newest; increment `dropped_overflow`. Frame sequence numbers are monotonically increasing, allowing audit of skips. Closed queue drains existing packets and then returns `None`, rejects additional pushes, wakes waiting consumers. Invalid capacity fails before allocation. A capture worker closes the queue on EOF/failure, propagates worker exceptions to the consumer after draining, and is stopped/joined on exit. `max_frames` limits **processed** frames rather than decoded/produced frames; early termination stops the worker.
+
+Buffered telemetry: `capture_frames_read`, `frames_processed`, `frames_dropped_overflow`, `queue_wait_ms` p50/p95/max, `queue_max_depth`, and `capture_mode=buffered`. `capture_frames_read = frames_processed + frames_dropped_overflow + frames_unprocessed` when capture thread has ended; `frames_unprocessed` includes remaining queued frames upon early termination. The main pipeline may read a changing number of frames from a finite file under overload; tests must not demand deterministic throughput/scheduling.
+
+The queue unit tests and fake-capture worker tests are deterministic. Buffered end-to-end video tests only verify valid output and metric invariants; performance is assessed separately on actual camera hardware.

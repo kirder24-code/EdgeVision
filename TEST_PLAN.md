@@ -25,3 +25,17 @@ For each behavior change: record baseline SHA, new test name, command + failing 
 ## Controlled limitations
 
 A moving white rectangle tests a decode→detector→native tracker→encode path, not model accuracy or identity robustness in crowded scenes. MOG2 can classify the initial frame as background motion. Benchmark results depend on CPU, source encoding, library versions, warmup and the number of frames; one run does not establish an SLA.
+
+## v0.3 test plan — specified before implementation
+
+| Test | Contract | Controlled input | Expected observation |
+|---|---|---|---|
+| T-14 | FR-11 | queue capacity=2; push seq=0,1,2 | pop seq=1,2; exactly one overflow; max depth=2 |
+| T-15 | FR-11 | queue capacity=1; push seq=0..99 | only seq=99 retained; 99 overflows; size never >1 |
+| T-16 | FR-12 | injected monotonic timestamps and dequeue clock | ordered packet IDs and nonnegative queue residence; invalid capacity rejected |
+| T-17 | FR-13 | queue waiting thread and close; separately close with queued data | waiter terminates with None; queued data drains; further put rejected |
+| T-18 | FR-14 | fake finite capture | capture thread reaches EOF; all packets returned if no consumer delay/overflow; joins |
+| T-19 | FR-14 | fake capture raising RuntimeError | worker error surfaces on consumer; worker terminates |
+| T-20 | FR-15 | synthetic encoded AVI in buffered mode | positive processed frames; output opens; counters reconcile; sync existing tests remain green |
+
+Execution evidence: retain RED pytest output before `capture.py` exists and GREEN output after implementation; never claim camera/sensor timestamp verification.

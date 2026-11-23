@@ -29,3 +29,16 @@ Semantic object classification; resilience to crossings; embedded device complia
 ## Definition of done for a milestone
 
 Spec and acceptance test committed before behavior change; demonstrate red test on old build; implement minimal fix; confirm green suite and rebuilt C++; record actual tool commands; no unverified hardware, throughput or Docker claims; update changelog and honest limitations.
+
+## v0.3 buffered capture addition (pre-implementation)
+
+| ID | Priority | Requirement | Test |
+|---|---|---|---|
+| FR-11 | MUST | Fixed-capacity FIFO drops oldest upon overflow, never expands, counts drops and maximum depth | T-14 / T-15 |
+| FR-12 | MUST | Monotonic sequence/timestamp packets and nonnegative measured queue residence time | T-16 |
+| FR-13 | MUST | Closing a queue wakes consumers, drains queued packets before EOF and prevents new pushes | T-17 |
+| FR-14 | MUST | Capture thread signals EOF, propagates read exceptions, and can be joined after early stop | T-18 / T-19 |
+| FR-15 | MUST | Optional `buffered` pipeline writes annotated output and consistent capture/drop telemetry; sync mode unchanged | T-20 |
+| NFR-08 | SHOULD | Real camera capture-to-consumer age benchmark with configured queue capacity and CPU load | Hardware pending |
+
+Time stamps are host post-decode times, not exposure times. Queue overflow is a **software** drop counter and cannot detect frames lost inside camera drivers or codecs.

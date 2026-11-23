@@ -78,3 +78,24 @@ Never claim the camera trial succeeded until these commands are executed on the 
 - The AVFoundation backend may depend on macOS permission grants and camera compatibility.
 - `processing_latency_ms` includes only detection/tracking, not exposure, sensor transfer, video output or glass-to-glass delay.
 - The streaming mode drops frames when overloaded by design.
+
+
+## ABI test fix (macOS)
+
+On macOS, `scripts/build.sh` produces `build/libedgevision_tracker.dylib`.
+Before this fix, two tests in `tests/test_tracker_abi_contract.py`
+incorrectly hard-coded the Linux `.so` filename and failed in fixture setup.
+The ABI tests now use `native_library_filename()` from the production tracker wrapper.
+
+From an activated Python 3.13 environment, run:
+
+```bash
+bash scripts/build.sh
+python -m pytest -q
+python -m edgevision.camera_probe --index 0 --frames 30
+```
+
+On Macs affected by the Homebrew `pyexpat` / `libexpat` symbol issue,
+run these commands in the same Terminal session in which the working
+`DYLD_LIBRARY_PATH` and `.venv` have been configured. macOS test results
+and actual camera availability must be verified on the target Mac.

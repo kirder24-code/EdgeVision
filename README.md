@@ -82,7 +82,7 @@ Read `ARCHITECTURE.md`, `REQUIREMENTS.md`, `TEST_PLAN.md`, `ACCEPTANCE.md`, and 
 
 Local Linux compilation, automated tests, native sanitizer smoke, sync and buffered file output, synthetic box evaluation, per-frame native track tracing and repeated benchmarks are supported by local evidence. See `artifacts/release_verification.log`, `artifacts/benchmark_v1/summary.json`, and TDD RED/GREEN logs supplied with the release archive.
 
-**Not verified:** Docker runtime, GitHub-hosted CI, real camera acquisition, real-world annotated detection/tracking accuracy, ONNX inference, ROS 2 integration, sensor synchronization, embedded hardware, and hard real-time deadlines. Do not represent this project as production-ready or claim real-world recognition accuracy from synthetic trials.
+**Not verified in the current Linux runner:** Docker runtime, GitHub-hosted CI, real-world annotated detection/tracking accuracy, genuine ONNX inference, ROS 2 integration, sensor synchronization, embedded hardware, and hard real-time deadlines. **The project owner has separately verified live camera acquisition and motion processing on an Apple Silicon MacBook Air**; see `MACOS_TEST_EVIDENCE.md`. Do not represent this project as production-ready or claim real-world recognition accuracy from synthetic trials.
 
 ## TDD history
 
@@ -93,3 +93,23 @@ Git commits preserve test-first specification and failed tests before implementa
 The native C++ tracker now builds as `libedgevision_tracker.dylib` using Apple Clang on Darwin, while preserving `libedgevision_tracker.so` on Linux. macOS compatibility is covered by platform contract tests and a GitHub Actions macOS job, but **physical Mac camera testing is still required**.
 
 Start with `MACOS_SETUP.md`. In short, extract the project, enter the `EdgeVision` folder and run `bash scripts/macos/setup.sh`, followed by `python -m edgevision.camera_probe --index 0 --frames 30`. Then run the bounded camera pipeline in the guide. The camera-only test requires permission in macOS Privacy & Security settings.
+
+## Experimental semantic ONNX mode (test-first extension)
+
+The stable default remains `--detector motion` (OpenCV MOG2 + native C++ tracker).
+An **optional** `--detector onnx --model /path/to/raw-yolo11.onnx` CPU mode is implemented, with NCHW RGB letterboxing, output validation, class-aware NMS, reverse-coordinate mapping, numeric class labels and the same native tracker. No ONNX file or model weights are bundled. The optional dependency is listed in `requirements-onnx.txt`.
+
+Read [ONNX_CONTRACT.md](ONNX_CONTRACT.md) and [ONNX_MACOS.md](ONNX_MACOS.md) for supported export format, setup, privacy, licensing, and a consistent camera/offline evaluation procedure. The test suite exercises a fake ONNX session plus native C++ tracking; **it does not prove genuine model inference or real-video recognition quality**. Model loading and CPU speed must be verified separately on the target Mac.
+
+### For paired comparisons (requires model and optional dependencies)
+
+```bash
+python -m scripts.record_raw --source 0 --frames 300 --output artifacts/raw_camera.avi --metadata artifacts/raw_camera.json
+python -m scripts.compare_detectors --source artifacts/raw_camera.avi --model yolo11n.onnx --outdir artifacts/paired
+```
+
+`compare_detectors` replays the exact same source in sync mode for both approaches, preserving output videos, track logs, performance reports and input SHA256. Without independent labels, it measures **performance only**, not detector accuracy. The raw camera file stays on the local computer.
+
+## v0.9 verification
+
+See `RELEASE_V09.md` for the 67-test green run, a test-first ONNX file-safety regression, and offline reproducibility results. This release is **not** a claim of successful genuine neural inference.

@@ -31,3 +31,37 @@ class MotionPipeline:
 
     def close(self):
         self.tracker.close()
+
+
+class SemanticPipeline:
+    """YOLO raw detections + existing native C++ ID tracking."""
+    def __init__(self, detector, max_distance=65, max_missed=8):
+        self.detector = detector
+        self.tracker = CppTracker(max_distance=max_distance, max_missed=max_missed)
+
+    def process(self, frame):
+        predictions = self.detector.detect(frame)
+        boxes = [p.xywh for p in predictions]
+        tracks = self.tracker.update(boxes)
+        rendered = frame.copy()
+        # Attach current-frame semantics by box overlap, not persistent class identity.
+        # This does not alter the native C++ tracking algorithm or its ID assignment.
+        from .onnx_detector import _iou
+        for track in tracks:
+            if track['missed']:
+                continue
+            match = max(predictions, key=lambda p: _iou(track['box'], p.xywh), default=None)
+            if match is not None and _iou(track['box'], match.xywh) >= 0.5:
+                track['class_id'] = match.class_id
+                track['confidence'] = round(match.score, 4)
+            x,y,w,h = map(int, track['box'])
+            cv2.rectangle(rendered, (x,y), (x+w,y+h), (0,220,0), 2)
+            label = f"ID {track['id']}"
+            if 'class_id' in track:
+                label += f" class:{track['class_id']} {track['confidence']:.2f}"
+            cv2.putText(rendered, label, (x, max(18, y-8)),
+                        cv2.FONT_HERSHEY_SIMPLEX, .55, (0,220,0), 2)
+        return rendered, tracks, len(predictions)
+
+    def close(self):
+        self.tracker.close()

@@ -73,3 +73,35 @@ Sample **single local** buffered-file run (synthetic 640×480, 180 frames read, 
 - [ ] macOS pytest and offline video end-to-end test pass in macOS CI.
 - [ ] macOS camera permission grant, 30-frame acquisition and readable output video verified on user hardware.
 - [ ] macOS camera metrics and real-world tracking evaluated and recorded.
+
+## User-confirmed macOS baseline (evidence from user's Terminal/screenshots on 2026-11-23)
+
+The following is **user-reported target-Mac evidence**, not reproduced on this Linux build host:
+
+- macOS Apple Silicon MacBook Air: native `.dylib` built by `scripts/build.sh`, `48 passed in 0.74s`.
+- After camera permission was granted: camera index 0, 30/30 frames acquired, 1920×1080, host read loop 31.12 FPS.
+- 300-frame live camera processing: 29.52 end-to-end frames/sec including I/O, processing p50 3.921 ms, p95 5.355 ms, max 7.931 ms, sampled peak RSS 309.22 MiB, 302 source frames read, 2 not processed at stop, 0 overflow drops, 1 max queue depth (queue capacity 3), 10.161 s wall time.
+- User confirmed detection rectangles visible in the output video. True exposure latency, real-world bounding box accuracy and semantic identity were not measured.
+- These checks confirm **Mac baseline motion pipeline**, NOT ONNX runtime or neural inference. Actual camera video/JSON are held on the user's Mac and were not independently inspected by the local build host.
+
+## Optional ONNX extension gates (current release)
+
+| Gate | Evidence | Status |
+|---|---|---|
+| O01 raw YOLO adapter contract | tests/test_onnx_contract.py | PASS locally with fake session |
+| O02 native tracker + semantic adapter | integration using injected outputs and real C++ ABI | PASS locally (mock outputs) |
+| O03 separated preprocess/inference/decode timing | instrumented mock session tests | PASS locally; not neural inference benchmark |
+| O04 paired comparison on same source | scripts/compare_detectors.py + test | PASS locally with mock session |
+| O05 raw recording of unannotated video | scripts/record_raw.py + tests | PASS locally on video file; camera pending |
+| O06 real ONNX model and CPU Runtime | load actual licensed model on Mac/Linux | NOT VERIFIED |
+| O07 real camera + neural detector accuracy | labelled unseen footage and human review | NOT VERIFIED |
+| O08 Docker + GitHub CI hosted runs | actual remote build/test evidence | NOT VERIFIED |
+
+Do **not** mark full robotics readiness complete. Scope of supported ONNX models is deliberately limited; `ONNX_CONTRACT.md` defines the interface. The original Python/C++ motion baseline remains operational without any optional neural dependencies.
+
+
+## v0.9 gate update (2026-11-23)
+
+- **PASS (local Linux):** 67 pytest checks, C++ native build, offline release verification, 3-run offline baseline benchmark. See `RELEASE_V09.md`.
+- **PASS (user Mac, previous motion-only release):** 48 tests, 30-frame camera probe, 300-frame buffered camera run and visible motion boxes. See `MACOS_TEST_EVIDENCE.md`.
+- **UNVERIFIED:** real ONNX CPU inference/model, ONNX on Mac, detection accuracy on manually annotated real footage, Docker run, remote CI, embedded edge target. The synthetic F1=0.80 is not real-world accuracy.

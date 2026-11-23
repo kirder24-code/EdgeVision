@@ -135,3 +135,22 @@ def test_real_onnx_mode_requires_model_before_video_is_opened(tmp_path):
     from edgevision.__main__ import run
     with pytest.raises(ValueError, match='--model'):
         run('0', str(tmp_path/'out.avi'), str(tmp_path/'metrics.json'), detector='onnx')
+
+
+def test_real_model_provenance_is_saved_in_metrics_with_mock_session(tmp_path):
+    """Model metadata is recorded only for an explicit on-disk model."""
+    from edgevision.__main__ import run
+    import hashlib
+    model = tmp_path/'model.onnx'
+    model.write_bytes(b'example-model-data')
+    source = tmp_path/'input.avi'
+    writer = cv2.VideoWriter(str(source), cv2.VideoWriter_fourcc(*'MJPG'), 10, (200,200))
+    assert writer.isOpened()
+    writer.write(_frame(200,200)); writer.release()
+    session = FakeSession(_output((50,100,40,40,.95,.1)))
+    detector = YoloRawDetector(session=session, input_size=200, confidence=.5)
+    result = run(str(source), str(tmp_path/'output.avi'), str(tmp_path/'metrics.json'),
+                 detector='onnx', model=str(model), semantic_detector=detector)
+    assert result['model_sha256'] == hashlib.sha256(model.read_bytes()).hexdigest()
+    assert result['model_path'] == str(model.resolve())
+    assert result['inference'] == 'mock_session_not_real_model'

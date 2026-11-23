@@ -10,10 +10,18 @@ import psutil
 
 from .pipeline import MotionPipeline
 from .capture import CaptureWorker
+from .recorder import percentile_nearest_rank, validate_output_paths
 
 
 def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_area=350,
         capture_mode="sync", queue_capacity=3):
+    if not isinstance(max_frames, int) or isinstance(max_frames, bool) or max_frames < 0:
+        raise ValueError("max_frames must be a nonnegative integer")
+    validate_output_paths(output, metrics)
+    if not str(source).isdigit():
+        source_path = Path(source).resolve()
+        if source_path == Path(output).resolve() or source_path == Path(metrics).resolve():
+            raise ValueError("output and metrics paths must be different from input")
     if capture_mode not in ("sync", "buffered"):
         raise ValueError("capture_mode must be sync or buffered")
     if capture_mode == "buffered" and (not isinstance(queue_capacity, int) or queue_capacity <= 0):
@@ -88,7 +96,7 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
     if not samples:
         raise RuntimeError('No frames decoded')
     s = sorted(samples)
-    pct = lambda p: s[min(len(s) - 1, max(0, int((len(s) - 1) * p)))]
+    pct = lambda p: percentile_nearest_rank(s, p)
     report = {
         'source': str(source), 'output': str(output), 'frames_processed': frame_count,
         'detections_total': detections, 'source_fps': fps_source,
@@ -98,6 +106,7 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
                                   'p95': round(pct(0.95), 3), 'max': round(max(samples), 3)},
         'peak_process_rss_mb': round(peak_rss / 2**20, 2),
         'duration_seconds': round(wall, 3),
+        'latency_percentile_definition': 'nearest rank (ceil(p * n))',
         'limitations': 'CPU/file benchmark; no camera latency or dropped-frame accounting; MOG2 motion, not semantic object recognition'
     }
     if worker is not None:
@@ -111,7 +120,7 @@ def run(source, output, metrics, *, max_frames=0, width=640, height=480, min_are
             'queue_capacity': queue_capacity,
             'queue_wait_ms': {
                 'p50': round(statistics.median(wait_sorted), 3),
-                'p95': round(wait_sorted[min(len(wait_sorted) - 1, int((len(wait_sorted) - 1) * .95))], 3),
+                'p95': round(percentile_nearest_rank(wait_sorted, .95), 3),
                 'max': round(max(wait_sorted), 3),
             },
             'timestamp_scope': 'monotonic clock after VideoCapture.read, NOT sensor exposure time',

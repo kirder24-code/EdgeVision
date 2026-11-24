@@ -1,0 +1,30 @@
+{
+  "input_file_sha256": {
+    "yolo_metrics.json": "800af7b40ef51ab53b138d1dcce9fdbb8c22fb9ff47fa066ca3e8f5b8281b3b4",
+    "yolo_tracks.jsonl": "0c86a8bed2e0dd8c0ef68fb2a9b32b366730413e878fa16b56a8a54960b4eb96",
+    "yolo_camera.avi": "5cee55f2be32d6799136aa7e997fcc73c38010e6ee481d81797da5931f274fa4"
+  },
+  "source": "user supplied genuine Mac ONNX CPU run",
+  "capture_and_pipeline": {
+    "frames_processed": 300,
+    "frames_read": 376,
+    "software_queue_dropped": 73,
+    "frames_unprocessed": 3,
+    "full_pipeline_fps": 18.07,
+    "postprocess_p50_ms": 25.364,
+    "inference_p50_ms": 23.997
+  },
+  "trace": {
+    "rows": 300,
+    "unique_track_ids": 41,
+    "class_id_counts_on_visible_tracks": {
+      "0": 496,
+      "59": 164,
+      "63": 31,
+      "65": 13,
+      "67": 310,
+      "79": 13
+    }
+  },
+  "interpretation": "Unique track IDs are not equivalent to ID switches or tracking accuracy; no ground-truth annotation supplied."
+}

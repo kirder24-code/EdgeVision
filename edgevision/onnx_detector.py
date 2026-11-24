@@ -45,6 +45,41 @@ def _iou(a, b):
     return intersection / union if union > 0 else 0.0
 
 
+def _vectorized_candidates(rows, original_hw, letterbox, *, confidence):
+    """Filter/classify/project all raw YOLO anchors with NumPy operations.
+
+    Returns score-descending, source-index-ascending candidate columns. NMS
+    remains a separate step and therefore retains the established policy.
+    """
+    height, width = map(int, original_hw)
+    ratio, (pad_x, pad_y) = letterbox
+    coords = rows[:, :4]
+    scores = np.where(np.isfinite(rows[:, 4:]), rows[:, 4:], -np.inf)
+    classes = np.argmax(scores, axis=1)
+    confidence_scores = scores[np.arange(len(rows)), classes]
+    mask = (np.isfinite(coords).all(axis=1) &
+            (coords[:, 2] > 0) & (coords[:, 3] > 0) &
+            (confidence_scores >= confidence) & (confidence_scores <= 1))
+    source_indices = np.flatnonzero(mask)
+    if not source_indices.size:
+        return source_indices, np.empty((0, 4), dtype=np.float64), confidence_scores[:0], classes[:0]
+    c = coords[source_indices].astype(np.float64, copy=False)
+    cx, cy, bw, bh = (c[:, i] for i in range(4))
+    x0 = np.clip(((cx - bw / 2) - pad_x) / ratio, 0., float(width))
+    y0 = np.clip(((cy - bh / 2) - pad_y) / ratio, 0., float(height))
+    x1 = np.clip(((cx + bw / 2) - pad_x) / ratio, 0., float(width))
+    y1 = np.clip(((cy + bh / 2) - pad_y) / ratio, 0., float(height))
+    boxes = np.stack((x0, y0, x1 - x0, y1 - y0), axis=1)
+    valid = (boxes[:, 2] > 0) & (boxes[:, 3] > 0)
+    source_indices = source_indices[valid]
+    boxes = boxes[valid]
+    values = confidence_scores[source_indices]
+    labels = classes[source_indices]
+    # np.lexsort's last key is primary; the index resolves exact-score ties.
+    order = np.lexsort((source_indices, -values))
+    return source_indices[order], boxes[order], values[order], labels[order]
+
+
 def decode_yolo_raw(raw, original_hw, letterbox, *, confidence=0.25, iou=0.45, max_detections=100,
                     class_count=None):
     """Decode raw YOLO outputs to source image boxes, with class-aware NMS.
@@ -83,28 +118,14 @@ def decode_yolo_raw(raw, original_hw, letterbox, *, confidence=0.25, iou=0.45, m
         raise ValueError('Invalid original image geometry')
     if rows.shape[0] > 250000:
         raise ValueError('Unreasonably large YOLO output')
-    candidates = []
-    for index, row in enumerate(rows):
-        coords = row[:4]
-        if not np.isfinite(coords).all() or coords[2] <= 0 or coords[3] <= 0:
-            continue
-        scores = np.where(np.isfinite(row[4:]), row[4:], -np.inf)
-        cls = int(np.argmax(scores))
-        score = float(scores[cls])
-        if score < confidence or score > 1:
-            continue
-        cx, cy, bw, bh = map(float, coords)
-        x0 = max(0., min(float(width), ((cx-bw/2)-pad_x)/ratio))
-        y0 = max(0., min(float(height), ((cy-bh/2)-pad_y)/ratio))
-        x1 = max(0., min(float(width), ((cx+bw/2)-pad_x)/ratio))
-        y1 = max(0., min(float(height), ((cy+bh/2)-pad_y)/ratio))
-        if x1 <= x0 or y1 <= y0:
-            continue
-        candidates.append((index, Prediction((x0,y0,x1-x0,y1-y0), score, cls)))
-    candidates.sort(key=lambda item: (-item[1].score, item[0]))
+    _, boxes, scores, classes = _vectorized_candidates(
+        rows, (height, width), letterbox, confidence=confidence)
     selected = []
-    for _, prediction in candidates:
-        if any(kept.class_id == prediction.class_id and _iou(kept.xywh, prediction.xywh) > iou for kept in selected):
+    # NMS over prefiltered detections (usually dozens, not 8400 anchors).
+    for box, score, cls in zip(boxes, scores, classes):
+        prediction = Prediction(tuple(float(v) for v in box), float(score), int(cls))
+        if any(kept.class_id == prediction.class_id and _iou(kept.xywh, prediction.xywh) > iou
+               for kept in selected):
             continue
         selected.append(prediction)
         if len(selected) >= max_detections:

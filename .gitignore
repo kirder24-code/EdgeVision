@@ -5,3 +5,8 @@ build/
 artifacts/*
 !artifacts/.gitkeep
 .venv/
+models/
+*.onnx
+*.pt
+*.avi
+*.mp4

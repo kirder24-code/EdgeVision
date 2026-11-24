@@ -1,0 +1,52 @@
+{
+  "source": "0",
+  "output": "artifacts/yolo_v010_camera.avi",
+  "frames_processed": 300,
+  "detector": "onnx",
+  "inference": "onnxruntime_cpu",
+  "detections_total": 610,
+  "source_fps": 15.0,
+  "processing_fps_excluding_io": 39.51,
+  "end_to_end_fps_including_io": 29.38,
+  "processing_latency_ms": {
+    "p50": 24.367,
+    "p95": 33.934,
+    "max": 47.404
+  },
+  "peak_process_rss_mb": 429.48,
+  "duration_seconds": 10.211,
+  "latency_percentile_definition": "nearest rank (ceil(p * n))",
+  "limitations": "CPU capture-to-consumer queue age, not glass-to-glass latency; software queue drops only; hardware/driver drops unknown; detector=onnx",
+  "onnx_stage_latency_ms": {
+    "preprocess": {
+      "p50": 1.091,
+      "p95": 2.604,
+      "max": 5.601
+    },
+    "inference": {
+      "p50": 21.286,
+      "p95": 29.453,
+      "max": 44.191
+    },
+    "postprocess": {
+      "p50": 1.131,
+      "p95": 2.186,
+      "max": 4.505
+    }
+  },
+  "model_path": "yolo11n.onnx",
+  "model_sha256": "ff853b53c0c1e07060dbf53644316cc6ef76cfae01809cab2f0f8cf115eca322",
+  "track_trace": "artifacts/yolo_v010_tracks.jsonl",
+  "capture_mode": "buffered",
+  "capture_frames_read": 308,
+  "frames_dropped_overflow": 6,
+  "frames_unprocessed": 2,
+  "queue_max_depth": 3,
+  "queue_capacity": 3,
+  "queue_wait_ms": {
+    "p50": 0.03,
+    "p95": 42.302,
+    "max": 108.846
+  },
+  "timestamp_scope": "monotonic clock after VideoCapture.read, NOT sensor exposure time"
+}

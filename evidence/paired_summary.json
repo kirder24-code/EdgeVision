@@ -1,0 +1,35 @@
+{
+  "test": "paired_offline_same_raw_video",
+  "capture_video": "raw_unannotated.avi",
+  "input_sha256": "a14524923e6dcae6ed1ad5a7275e4354c6ab12c36a6f32d878a1c4fc9ecaf074",
+  "model_sha256": "ff853b53c0c1e07060dbf53644316cc6ef76cfae01809cab2f0f8cf115eca322",
+  "runs_per_version": 3,
+  "frames_per_run": 300,
+  "capture_metadata": "raw_capture.json",
+  "versions": {
+    "v09": {
+      "end_to_end_fps_including_io": 26.19,
+      "processing_fps_excluding_io": 27.89,
+      "processing_p95_ms": 39.762,
+      "postprocess_p50_ms": 18.687,
+      "postprocess_p95_ms": 21.747,
+      "inference_p50_ms": 14.65,
+      "peak_rss_mb": 251.64
+    },
+    "v010": {
+      "end_to_end_fps_including_io": 45.61,
+      "processing_fps_excluding_io": 52.74,
+      "processing_p95_ms": 21.504,
+      "postprocess_p50_ms": 0.888,
+      "postprocess_p95_ms": 1.614,
+      "inference_p50_ms": 15.878,
+      "peak_rss_mb": 262.42
+    }
+  },
+  "notes": [
+    "Both versions process identical pre-recorded raw frames; offline, no live camera queue/drop comparison.",
+    "No annotated output reused as input. Same ONNX weights and confidence/NMS settings.",
+    "FPS includes file decoder and video writer; hardware camera-to-display latency not measured.",
+    "Not a labeled detection accuracy or identity-switch benchmark."
+  ]
+}

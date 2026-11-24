@@ -1,3 +1,27 @@
+# EdgeVision | portfolio release v0.10
+
+A camera-based perception engineering prototype developed with AI-assisted coding and iterative hands-on validation on Apple Silicon. Independent portfolio work; not affiliated with CSI or a production robotics deployment.
+
+## Evidence at a glance
+- Python/OpenCV + C++17 native tracker (C ABI/ctypes), bounded video queue, CPU YOLO11n ONNX inference and JSON/JSONL diagnostics.
+- Linux: 81 automated tests passed on the v0.10 source recheck. macOS: 67 tests passed on v0.9; v0.10 camera and paired benchmark runs succeeded. The v0.10 macOS test count is not independently documented.
+- Paired offline benchmark: same raw 300-frame video, identical model hash and settings, three runs per version. Median full throughput 26.19 -> 45.61 FPS (+74.15%); median postprocessing 18.687 -> 0.888 ms (21.04x); processing p95 39.762 -> 21.504 ms (-45.92%).
+- Separate live camera runs: 18.07 -> 29.38 FPS; different scenes, so not a controlled comparison. v0.10 had 6 software queue drops in 308 reads; no hardware-drop measurement.
+
+See `evidence/paired_summary.json` and the two live metrics files for sanitized operator-supplied summaries. Raw footage and model weights are excluded. The paired script is in `benchmarks/edgevision_paired_benchmark.py`; it requires two installed versions and local model weights as described in its help. Individual run logs and the exact raw video are not included, so the historical benchmark cannot be independently replayed from this archive alone. The source and procedure can be used with new footage. Historical documents below describe earlier milestones and may contain superseded statuses; this section is the latest evidence summary.
+
+## Scope boundary and next validation (not release blockers for portfolio)
+1. Docker/hosted CI clean build and a public, privacy-reviewed repository.
+2. Annotated real video: precision/recall, ID switches and occlusion cases.
+3. Long-duration memory/thermal test and camera disconnect/recovery.
+4. Target Linux/ARM or Jetson benchmark, acceleration and deployment toolchain only if required.
+5. Sensor timestamps, telemetry and control interfaces remain outside this single-camera prototype; no ROS, MAVLink or flight-control integration claimed.
+
+Review third-party terms before distributing model weights or deploying commercially. No weights are included. This prototype is provided for technical evaluation; no production or hard real-time guarantees.
+
+---
+
+## Historical implementation guide
 # EdgeVision — C++/Python CPU perception engineering prototype
 
 **Reproducible offline and buffered video processing on Linux; not production robotics.** A portfolio project demonstrating OpenCV motion detection, a native C++17 multi-object tracker, bounded capture, frame traceability, test-driven development, and measurable CPU performance.
